@@ -6,6 +6,10 @@ import {
 	type SourceFile,
 } from "ts-morph";
 import logger from "../../utils/logger";
+import {
+	collectPackageExportWarnings,
+	type PackageExportWarning,
+} from "./package-export-warnings";
 
 export interface UnusedExport {
 	/** export を宣言しているファイルの絶対パス */
@@ -62,6 +66,13 @@ export interface FindUnusedExportsResult {
 	truncated: boolean;
 	/** 実際にスキャン対象となったファイル数 (除外後) */
 	scannedFiles: number;
+	/**
+	 * 「built dist を公開しているパッケージ」由来の系統的 false positive の構造的警告。
+	 * 候補を出したパッケージの package.json エントリポイント (`exports` 等) が
+	 * スキャン対象ソース外を指す場合、そのパッケージの候補は他パッケージからの消費が
+	 * 見えていない可能性が高い。詳細は {@link collectPackageExportWarnings} を参照。
+	 */
+	packageWarnings: PackageExportWarning[];
 }
 
 const DEFAULT_MAX_RESULTS = 100;
@@ -101,6 +112,10 @@ interface ExportCandidate {
  * - テスト / build / config から文字列で参照される export
  * - 純粋ローカル再エクスポート (`export { x }` の `x` を別の場所で `const x` 宣言したケース) は
  *   現実装では `ExportDeclaration` として扱われるため候補から外す
+ * - workspace パッケージが built dist を `exports` で公開している場合
+ *   (例: `exports: { ".": "./dist/index.js" }`)、他パッケージからの参照はビルド出力
+ *   (または node_modules) 側に解決されるため検出できず、そのパッケージの export が
+ *   一括で偽陽性になる。この形は構造的に検出して `packageWarnings` として返す
  *
  * 完璧な検出はできないため、`entryPoints` で公開 API を、`excludeFilePatterns` で
  * テスト / 規約ファイルを除外して候補を絞ることを前提とする。
@@ -172,6 +187,11 @@ export function findUnusedExports(
 			unusedExports,
 			truncated,
 			scannedFiles: sourceFiles.length,
+			packageWarnings: collectPackageExportWarnings(
+				project,
+				sourceFiles.map((sf) => sf.getFilePath()),
+				unusedExports.map((e) => e.filePath),
+			),
 		};
 	} finally {
 		cleanup();
