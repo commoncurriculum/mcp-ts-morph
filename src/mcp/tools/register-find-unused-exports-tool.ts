@@ -6,6 +6,7 @@ import {
 	findUnusedExports,
 	type UnusedExport,
 } from "../../ts-morph/find-unused-exports/find-unused-exports";
+import type { PackageExportWarning } from "../../ts-morph/find-unused-exports/package-export-warnings";
 import {
 	summarizeUnusedExports,
 	type UnusedExportsSummary,
@@ -41,6 +42,23 @@ function formatUnusedExport(entry: UnusedExport): string {
 	return `- ${entry.filePath}:${entry.line}:${entry.column}  ${entry.name} (${entry.kind})${tag}  textHits=${entry.textOccurrences} sameFileRefs=${entry.sameFileReferenceCount}`;
 }
 
+/**
+ * パッケージ単位の構造的警告を出力行に整形する。
+ * list / summary 両モードで、候補リストより先に読ませたいので先頭側に挿入する。
+ */
+function formatPackageWarnings(warnings: PackageExportWarning[]): string[] {
+	if (warnings.length === 0) return [];
+	const lines = ["⚠ Package-level warnings (likely FALSE POSITIVES below):"];
+	for (const w of warnings) {
+		const label = w.packageName ?? w.packageJsonPath;
+		lines.push(
+			`- ${label} (${w.packageJsonPath}): ${w.candidateCount} candidate(s) from this package may actually be consumed by other packages. Its package.json entry points (${w.externalEntryTargets.join(", ")}) resolve OUTSIDE the scanned sources, so cross-package imports resolve to built output / node_modules and are invisible to this analysis. Cross-check textHits and find_references_by_tsmorph before deleting anything from this package.`,
+		);
+	}
+	lines.push("");
+	return lines;
+}
+
 /** ディレクトリ群の共通プレフィックスを求め、表示を短くするために切り出す。 */
 function commonDirectoryPrefix(directories: string[]): string {
 	if (directories.length === 0) return "";
@@ -58,6 +76,7 @@ function formatSummary(
 	summary: UnusedExportsSummary,
 	scannedFiles: number,
 	truncated: boolean,
+	packageWarnings: PackageExportWarning[],
 ): string {
 	if (summary.total === 0) {
 		return `No unused exports found.\nScanned files: ${scannedFiles}\nTruncated: ${truncated}`;
@@ -77,6 +96,7 @@ function formatSummary(
 	const hiddenDirs = summary.byDirectory.length - topDirs.length;
 
 	const lines = [
+		...formatPackageWarnings(packageWarnings),
 		`Unused export summary (total ${summary.total}):`,
 		`- Delete-safety: deletable (sameFileRefs=0) = ${summary.deletable}, unexport-only (sameFileRefs>=1) = ${summary.unexportOnly}`,
 		`- Default exports (low confidence, verify each): ${summary.defaultExports}`,
@@ -131,6 +151,7 @@ Static analysis cannot see:
 - Symbols looked up via reflection or string keys.
 - Pure local re-exports (\`export { x }\` without \`from\`) where \`x\` is declared by a separate \`const x = ...\` in the same file — this form is not enumerated.
 - Mixed function + namespace declarations may be partially missed.
+- **Workspace packages that publish built output**: in a monorepo, when a scanned package's \`package.json\` entry points (\`exports\` / \`main\` / \`module\` / \`types\`) resolve outside the scanned sources (e.g. \`"exports": { ".": "./dist/index.js" }\`), imports from OTHER workspace packages resolve to the built files (or node_modules) instead of the scanned sources. Every export of such a package is then reported unused even when it IS consumed — a systematic false positive. The tool detects this shape and prepends a ⚠ package-level warning to the result; treat all candidates from a warned package as low confidence. Workaround: point that package's \`exports\` at source files for analysis, or verify each candidate with \`find_references_by_tsmorph\` / \`textHits\`.
 
 ### Default exports are high false-positive
 \`export default <Identifier>\` / \`export = <Identifier>\` (shown with the \`[default]\` tag) are prone to FALSE POSITIVES: \`findReferencesAsNodes\` runs on the local identifier and often fails to connect to \`import Foo from "./mod"\` default-import sites. A default export reported here with \`textHits\` well above 0 is almost certainly actually used. Treat \`[default]\` candidates as low confidence and always confirm with \`find_references_by_tsmorph\`.
@@ -161,6 +182,9 @@ Deleting every reported declaration blindly will break the build: the majority a
 \`textHits\` is the number of word-boundary occurrences of the export's name in OTHER source files (declaring file excluded — so it says nothing about same-file usage; use \`sameFileRefs\` for that):
 - \`textHits=0\`: no OTHER file mentions the name. Does NOT by itself mean deletable — still check \`sameFileRefs\`.
 - \`textHits=1+\`: the name appears as a string literal, JSX tag, dynamic \`import().then(m => m.X)\`, or comment. Verify with \`find_references_by_tsmorph\` before deleting. Short names (e.g. \`a\`, \`id\`) match incidentally — discount accordingly.
+
+### ⚠ Package-level warnings
+When a package that produced candidates publishes built output (see Known limitations), a ⚠ warnings block is prepended to the result (both list and summary modes) naming the package, its out-of-scan entry points, and how many candidates are affected. Those candidates are likely false positives.
 
 Trailing line reports \`Scanned files: N\` and \`Truncated: bool\`.`,
 		{
@@ -237,11 +261,13 @@ Trailing line reports \`Scanned files: N\` and \`Truncated: bool\`.`,
 						summarizeUnusedExports(result.unusedExports),
 						result.scannedFiles,
 						result.truncated,
+						result.packageWarnings,
 					);
 				} else if (result.unusedExports.length === 0) {
 					message = `No unused exports found.\nScanned files: ${result.scannedFiles}\nTruncated: ${result.truncated}`;
 				} else {
 					const lines = [
+						...formatPackageWarnings(result.packageWarnings),
 						`Unused export candidates (${result.unusedExports.length}):`,
 						...result.unusedExports.map(formatUnusedExport),
 						"",
