@@ -22,22 +22,22 @@ const envSchema = z.object({
 type EnvConfig = z.infer<typeof envSchema>;
 
 /**
- * 環境変数を Zod スキーマでパースし、検証済みの設定オブジェクトを返します。
- * パースに失敗した場合は、エラーメッセージをコンソールに出力し、
- * デフォルト値を持つ設定オブジェクトを返します。
+ * Parses environment variables against the Zod schema and returns a validated config object.
+ * On a parse failure it prints an error message to the console and returns a config object
+ * populated with default values.
  *
- * @returns {EnvConfig} 検証済みまたはデフォルトの環境変数設定。
+ * @returns {EnvConfig} The validated environment configuration, or defaults on failure.
  */
 export function parseEnvVariables(): EnvConfig {
 	const parseResult = envSchema.safeParse(process.env);
 
 	if (!parseResult.success) {
-		// テスト環境以外でのみエラーを出力
+		// Only print errors outside of the test environment.
 		if (process.env.NODE_ENV !== "test") {
 			console.error(
-				"❌ 不正な環境変数:",
+				"❌ Invalid environment variables:",
 				parseResult.error.flatten().fieldErrors,
-				"\nデフォルトのロギング設定にフォールバックします。",
+				"\nFalling back to the default logging configuration.",
 			);
 		}
 		return {
@@ -56,12 +56,12 @@ export function parseEnvVariables(): EnvConfig {
 }
 
 /**
- * ファイルログ出力用の Pino Transport 設定オブジェクトを生成します。
- * ログディレクトリが存在しない場合は作成を試みます。
- * ディレクトリの準備に失敗した場合は undefined を返します。
+ * Builds the Pino transport configuration for file log output.
+ * Attempts to create the log directory when it does not exist.
+ * Returns undefined when the directory cannot be prepared.
  *
- * @param {string} logFilePath - ログファイルの絶対パス。
- * @returns {pino.TransportSingleOptions | undefined} ファイル Transport 設定、または失敗時に undefined。
+ * @param {string} logFilePath - Absolute path to the log file.
+ * @returns {pino.TransportSingleOptions | undefined} The file transport configuration, or undefined on failure.
  */
 function setupLogFileTransport(
 	logFilePath: string,
@@ -71,11 +71,11 @@ function setupLogFileTransport(
 	try {
 		if (!fs.existsSync(logDir)) {
 			fs.mkdirSync(logDir, { recursive: true });
-			console.log(`ログディレクトリを作成しました: ${logDir}`);
+			console.log(`Created log directory: ${logDir}`);
 		}
 	} catch (err) {
 		console.error(
-			`ログディレクトリの確認/作成中にエラーが発生しました: ${logDir}`,
+			`Error while checking/creating the log directory: ${logDir}`,
 			err,
 		);
 		return undefined;
@@ -83,12 +83,12 @@ function setupLogFileTransport(
 
 	if (!fs.existsSync(logDir)) {
 		console.error(
-			`ファイルロギングは無効です: ログディレクトリ ${logDir} の存在を確認できませんでした。`,
+			`File logging is disabled: could not confirm that log directory ${logDir} exists.`,
 		);
 		return undefined;
 	}
 
-	console.log(`ファイルにログ出力します: ${logFilePath}`);
+	console.log(`Writing logs to file: ${logFilePath}`);
 	return {
 		target: "pino/file",
 		options: { destination: logFilePath, mkdir: false },
@@ -96,13 +96,13 @@ function setupLogFileTransport(
 }
 
 /**
- * コンソールログ出力用の Pino Transport 設定オブジェクトを生成します。
- * 本番環境以外では pino-pretty の使用を試みます。
- * pino-pretty が利用できない場合や本番環境では、Transport 設定なし (undefined) を返します
- * (Pino のデフォルトである標準出力への JSON 出力が使用されます)。
+ * Builds the Pino transport configuration for console log output.
+ * Outside of production it attempts to use pino-pretty.
+ * When pino-pretty is unavailable, or in production, it returns no transport configuration
+ * (undefined), in which case Pino's default JSON output to standard output is used.
  *
- * @param {string} nodeEnv - 現在の NODE_ENV (`development`, `production`, `test`)。
- * @returns {pino.TransportSingleOptions | undefined} コンソール Transport 設定 (pino-pretty用)、または設定不要時に undefined。
+ * @param {string} nodeEnv - The current NODE_ENV (`development`, `production`, `test`).
+ * @returns {pino.TransportSingleOptions | undefined} The console transport configuration (for pino-pretty), or undefined when none is needed.
  */
 function setupConsoleTransport(
 	nodeEnv: string,
@@ -113,19 +113,19 @@ function setupConsoleTransport(
 
 	try {
 		require.resolve("pino-pretty");
-		// テスト環境では不要なため、development環境でのみログ出力
+		// Not needed in the test environment, so only log in development.
 		if (nodeEnv === "development") {
-			console.log("コンソールロギングに pino-pretty を使用します。");
+			console.log("Using pino-pretty for console logging.");
 		}
 		return {
 			target: "pino-pretty",
 			options: { colorize: true, ignore: "pid,hostname" },
 		};
 	} catch (e) {
-		// テスト環境では不要なため、development環境でのみログ出力
+		// Not needed in the test environment, so only log in development.
 		if (nodeEnv === "development") {
 			console.log(
-				"pino-pretty が見つかりません。デフォルトの JSON コンソールロギングを使用します。",
+				"pino-pretty was not found. Falling back to the default JSON console logging.",
 			);
 		}
 		return undefined;
@@ -133,13 +133,13 @@ function setupConsoleTransport(
 }
 
 /**
- * NODE_ENV とログ出力先に基づいて適切な Pino Transport 設定を構成します。
- * テスト環境では Transport を設定せず、ログは標準出力に向けられます。
+ * Configures the appropriate Pino transport based on NODE_ENV and the log output target.
+ * In the test environment no transport is configured and logs are directed to standard output.
  *
- * @param {string} nodeEnv - 現在の NODE_ENV。
- * @param {"console" | "file"} logOutput - ログの出力先。
- * @param {string} logFilePath - ファイル出力時のログファイルパス。
- * @returns {pino.TransportSingleOptions | undefined} 構成された Transport 設定、または Transport 不要時に undefined。
+ * @param {string} nodeEnv - The current NODE_ENV.
+ * @param {"console" | "file"} logOutput - The log output destination.
+ * @param {string} logFilePath - The log file path when writing to a file.
+ * @returns {pino.TransportSingleOptions | undefined} The configured transport, or undefined when no transport is needed.
  */
 export function configureTransport(
 	nodeEnv: string,
@@ -154,11 +154,11 @@ export function configureTransport(
 }
 
 /**
- * プロセスの終了イベントや例外発生時にログをフラッシュし、プロセスを終了させるハンドラー。
+ * Handler that flushes logs and terminates the process on process exit events or exceptions.
  *
- * @param {pino.Logger} logger - 使用する Pino ロガーインスタンス。
- * @param {string} evt - 発生したイベント名 (例: 'SIGINT', 'uncaughtException')。
- * @param {Error | number | null} [err] - 関連するエラーオブジェクトまたは終了コード。
+ * @param {pino.Logger} logger - The Pino logger instance to use.
+ * @param {string} evt - The name of the event that occurred (e.g. 'SIGINT', 'uncaughtException').
+ * @param {Error | number | null} [err] - The associated error object or exit code.
  */
 function exitHandler(
 	logger: pino.Logger,
@@ -170,7 +170,7 @@ function exitHandler(
 		logger.flush();
 	} catch (flushErr) {
 		if (!isTestEnv) {
-			console.error("終了時のログフラッシュエラー:", flushErr);
+			console.error("Error flushing logs on exit:", flushErr);
 		}
 	}
 
@@ -178,16 +178,16 @@ function exitHandler(
 		err instanceof Error
 			? err
 			: err != null
-				? new Error(`終了コードまたは理由: ${err}`)
+				? new Error(`Exit code or reason: ${err}`)
 				: null;
 
 	if (!isTestEnv) {
-		console.log(`プロセス終了 (${evt})...`);
+		console.log(`Process exiting (${evt})...`);
 	}
 
 	if (errorObj) {
 		if (!isTestEnv) {
-			console.error("終了エラー:", errorObj);
+			console.error("Exit error:", errorObj);
 		}
 		process.removeAllListeners("uncaughtException");
 		process.removeAllListeners("unhandledRejection");
@@ -198,11 +198,10 @@ function exitHandler(
 }
 
 /**
- * SIGINT, SIGTERM, uncaughtException, unhandledRejection イベントを捕捉し、
- * exitHandler を呼び出すリスナーをプロセスに設定します。
- * また、通常の exit イベントリスナーも設定します。
+ * Registers listeners that capture SIGINT, SIGTERM, uncaughtException, and unhandledRejection
+ * events and invoke exitHandler. Also registers a listener for the normal exit event.
  *
- * @param {pino.Logger} logger - exitHandler に渡す Pino ロガーインスタンス。
+ * @param {pino.Logger} logger - The Pino logger instance passed to exitHandler.
  */
 export function setupExitHandlers(logger: pino.Logger) {
 	process.once("SIGINT", () => exitHandler(logger, "SIGINT"));
@@ -218,15 +217,13 @@ export function setupExitHandlers(logger: pino.Logger) {
 		),
 	);
 
-	// 通常のexitハンドラはテスト環境でも動作させる（テストランナーによっては必要）
+	// Run the normal exit handler even in the test environment (some test runners require it).
 	process.on("exit", (code) => {
 		const isTestEnv = process.env.NODE_ENV === "test";
 		if (!isTestEnv) {
-			console.log(
-				`プロセス終了 コード: ${code}。ログはフラッシュされているはずです。`,
-			);
+			console.log(`Process exit code: ${code}. Logs should have been flushed.`);
 		}
-		// テストによっては終了コードのアサーションを行うため、ログフラッシュのみ試行
+		// Some tests assert on the exit code, so only attempt to flush the logs.
 		try {
 			logger.flush();
 		} catch (e) {

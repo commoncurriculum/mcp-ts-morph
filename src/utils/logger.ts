@@ -28,7 +28,7 @@ const baseLogger = transport
 
 setupExitHandlers(baseLogger);
 
-// テスト環境では初期化ログを出力しない
+// Do not emit the initialization log in the test environment.
 if (!isTestEnv) {
 	baseLogger.info(
 		{
@@ -37,7 +37,7 @@ if (!isTestEnv) {
 			logFilePath: env.LOG_OUTPUT === "file" ? env.LOG_FILE_PATH : undefined,
 			nodeEnv: env.NODE_ENV,
 		},
-		"ロガー初期化完了",
+		"Logger initialization complete",
 	);
 }
 
