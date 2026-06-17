@@ -6,6 +6,7 @@ import { registerFindReferencesTool } from "./register-find-references-tool";
 import { registerFindUnusedExportsTool } from "./register-find-unused-exports-tool";
 import { registerGetTypeAtPositionTool } from "./register-get-type-at-position-tool";
 import { registerMoveSymbolToFileTool } from "./register-move-symbol-to-file-tool";
+import { registerOrganizeImportsTool } from "./register-organize-imports-tool";
 import { registerRemovePathAliasTool } from "./register-remove-path-alias-tool";
 import { registerRenameFileSystemEntryTool } from "./register-rename-file-system-entry-tool";
 import { registerRenameSymbolTool } from "./register-rename-symbol-tool";
@@ -23,4 +24,5 @@ export function registerTsMorphTools(server: McpServer): void {
 	registerGetTypeAtPositionTool(server);
 	registerFindUnusedExportsTool(server);
 	registerConvertDefaultExportTool(server);
+	registerOrganizeImportsTool(server);
 }
