@@ -93,6 +93,7 @@ pnpm inspector    # Debug run with MCP Inspector
      - `change-signature/`: Function signature changes
      - `get-type-at-position/`: Getting type information at a position
      - `convert-default-export/`: Converting a default export to a named export
+     - `organize-imports/`: Removing unused imports, sorting, and coalescing
    - `_utils/`: Shared utilities
      - `ts-morph-project.ts`: Common project creation logic
    - `_test-utils/`: Test helpers
@@ -162,5 +163,6 @@ Controllable via environment variables:
 - **Function signature changes**: `src/ts-morph/change-signature/`
 - **Type information retrieval**: `src/ts-morph/get-type-at-position/`
 - **Default-to-named export conversion**: `src/ts-morph/convert-default-export/`
+- **Import organization**: `src/ts-morph/organize-imports/`
 
 For detailed specifications of each feature, see README.md.

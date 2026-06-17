@@ -44,6 +44,7 @@ Each tool uses `ts-morph` to parse the AST and applies changes while preserving 
 | [`get_type_at_position_by_tsmorph`](#get_type_at_position_by_tsmorph) | Get the inferred type at a given position |
 | [`find_unused_exports_by_tsmorph`](#find_unused_exports_by_tsmorph) | List candidates for unused exports |
 | [`convert_default_export_to_named_by_tsmorph`](#convert_default_export_to_named_by_tsmorph) | Convert a default export to a named export and update all importers |
+| [`organize_imports_by_tsmorph`](#organize_imports_by_tsmorph) | Remove unused imports, sort, and coalesce them across files |
 
 ### `rename_symbol_by_tsmorph`
 
@@ -136,6 +137,15 @@ Converts a file's `export default` into a named export and rewrites every import
 - **Reference updates**: `import Foo from "target"` and the named-specifier form `import { default as Foo } from "target"` both become `import { Name as Foo } from "target"` (the alias is dropped when the local name already equals `Name`); default imports are merged into existing named imports (deduping identical specifiers), or split into a separate declaration when a namespace import (`import Foo, * as ns`) is present (reusing an existing same-module declaration when one exists); `export { default } from "target"` and `export { default as X } from "target"` are rewritten to named re-exports. Path-alias and relative specifiers are both resolved via the TypeChecker.
 - **Safety**: `newName` is validated as a non-reserved identifier; the conversion aborts if the resulting name would collide with an existing export in the target file, and anonymous abstract classes are rejected (they have no valid expression form) — so the tool never emits invalid TypeScript for these cases.
 - **Note**: Run with `dryRun: true` first to preview the impacted files. Dynamic/runtime access to the default (`import("target").then(m => m.default)`, `require("target").default`) is not detected. A re-export that forwards the default as a default (`export { default } from "target"`) becomes a named re-export, changing that barrel's public surface; **transitive** chains are not followed (only sites whose module specifier resolves directly to the target are updated), so verify downstream consumers of such barrels.
+
+### `organize_imports_by_tsmorph`
+
+Runs the editor "Organize Imports" action on specific files (or the whole project): removes unused imports, sorts them, and coalesces multiple imports from the same module.
+
+- **Use case**: Cleaning up unused imports left behind after edits (deleting code, moving symbols), or normalizing import order across a set of files in one pass.
+- **Required information**: `tsconfigPath`. `filePaths` is optional — omit it to organize every non-declaration source file in the project.
+- **Behavior**: Removes unused named imports (and import declarations that become empty), sorts/coalesces same-module imports, and keeps side-effect-only imports (`import "./x"`). Usage in JSX, type positions, and decorators is accounted for via the TypeScript language service.
+- **Note**: Omitting `filePaths` can produce a large diff (it reorders imports project-wide), so prefer passing the files you touched and/or run with `dryRun: true` first. Expect ordering-only diffs even when nothing was unused.
 
 ## Logging Configuration
 

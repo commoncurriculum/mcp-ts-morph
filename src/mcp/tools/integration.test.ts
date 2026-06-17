@@ -731,6 +731,54 @@ console.log(Btn());
 		});
 	});
 
+	describe("organize_imports_by_tsmorph", () => {
+		it("removes unused imports from a specified file", async () => {
+			const mPath = path.join(srcDir, "m.ts");
+			const appPath = path.join(srcDir, "app.ts");
+			fs.writeFileSync(
+				mPath,
+				"export const used = 1;\nexport const dead = 2;\n",
+			);
+			fs.writeFileSync(
+				appPath,
+				'import { used, dead } from "./m";\n\nconsole.log(used);\n',
+			);
+
+			const result = await mockServer.callTool("organize_imports_by_tsmorph", {
+				tsconfigPath,
+				filePaths: [appPath],
+				dryRun: false,
+			});
+
+			expect(result).toHaveProperty("isError", false);
+			const updated = fs.readFileSync(appPath, "utf-8");
+			expect(updated).toContain('import { used } from "./m"');
+			expect(updated).not.toContain("dead");
+		});
+
+		it("does not modify files in dryRun mode", async () => {
+			const mPath = path.join(srcDir, "m2.ts");
+			const appPath = path.join(srcDir, "app2.ts");
+			fs.writeFileSync(
+				mPath,
+				"export const used = 1;\nexport const dead = 2;\n",
+			);
+			fs.writeFileSync(
+				appPath,
+				'import { used, dead } from "./m2";\nconsole.log(used);\n',
+			);
+
+			const result = await mockServer.callTool("organize_imports_by_tsmorph", {
+				tsconfigPath,
+				filePaths: [appPath],
+				dryRun: true,
+			});
+
+			expect(result).toHaveProperty("isError", false);
+			expect(fs.readFileSync(appPath, "utf-8")).toContain("dead");
+		});
+	});
+
 	describe("error handling", () => {
 		it("returns an error for a file that does not exist", async () => {
 			const nonExistentPath = path.join(srcDir, "non-existent.ts");
