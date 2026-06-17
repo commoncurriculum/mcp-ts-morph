@@ -779,6 +779,35 @@ console.log(Btn());
 		});
 	});
 
+	describe("get_diagnostics_by_tsmorph", () => {
+		it("reports a type error for the project", async () => {
+			const badPath = path.join(srcDir, "bad.ts");
+			fs.writeFileSync(badPath, "const x: number = 'oops';\n");
+
+			const result = await mockServer.callTool("get_diagnostics_by_tsmorph", {
+				tsconfigPath,
+			});
+
+			expect(result).toHaveProperty("isError", false);
+			const text = result.content[0]?.text || "";
+			expect(text).toContain("TS2322");
+			expect(text).toContain("bad.ts");
+		});
+
+		it("reports no diagnostics for a clean file", async () => {
+			const goodPath = path.join(srcDir, "good.ts");
+			fs.writeFileSync(goodPath, "export const y: number = 1;\n");
+
+			const result = await mockServer.callTool("get_diagnostics_by_tsmorph", {
+				tsconfigPath,
+				filePaths: [goodPath],
+			});
+
+			expect(result).toHaveProperty("isError", false);
+			expect(result.content[0]?.text || "").toContain("No diagnostics");
+		});
+	});
+
 	describe("error handling", () => {
 		it("returns an error for a file that does not exist", async () => {
 			const nonExistentPath = path.join(srcDir, "non-existent.ts");
