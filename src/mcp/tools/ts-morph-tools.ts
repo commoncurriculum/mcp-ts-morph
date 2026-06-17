@@ -14,6 +14,7 @@ import { registerOrganizeImportsTool } from "./register-organize-imports-tool";
 import { registerRemovePathAliasTool } from "./register-remove-path-alias-tool";
 import { registerRenameFileSystemEntryTool } from "./register-rename-file-system-entry-tool";
 import { registerRenameSymbolTool } from "./register-rename-symbol-tool";
+import { registerSafeDeleteSymbolTool } from "./register-safe-delete-symbol-tool";
 
 /**
  * Registers the ts-morph-based refactoring tool suite with the MCP server
@@ -33,4 +34,5 @@ export function registerTsMorphTools(server: McpServer): void {
 	registerConvertNamedToDefaultTool(server);
 	registerAddMissingImportsTool(server);
 	registerApplyCodeFixTool(server);
+	registerSafeDeleteSymbolTool(server);
 }
