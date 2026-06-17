@@ -64,19 +64,20 @@ function collectDiagnostics(
 	});
 }
 
+// Single source of truth: the tuple order is also the sort rank (most
+// actionable first), and `CATEGORY_LABELS` maps the ts-morph enum onto it.
+const CATEGORY_SORT_ORDER = [
+	"error",
+	"warning",
+	"suggestion",
+	"message",
+] as const satisfies readonly DiagnosticCategoryLabel[];
+
 const CATEGORY_LABELS: Record<DiagnosticCategory, DiagnosticCategoryLabel> = {
 	[DiagnosticCategory.Error]: "error",
 	[DiagnosticCategory.Warning]: "warning",
 	[DiagnosticCategory.Suggestion]: "suggestion",
 	[DiagnosticCategory.Message]: "message",
-};
-
-// Ordering used to surface the most actionable diagnostics first.
-const CATEGORY_ORDER: Record<DiagnosticCategoryLabel, number> = {
-	error: 0,
-	warning: 1,
-	suggestion: 2,
-	message: 3,
 };
 
 function toDiagnosticInfo(diagnostic: Diagnostic): DiagnosticInfo {
@@ -118,7 +119,9 @@ function flattenMessageText(
 }
 
 function compareDiagnostics(a: DiagnosticInfo, b: DiagnosticInfo): number {
-	const byCategory = CATEGORY_ORDER[a.category] - CATEGORY_ORDER[b.category];
+	const byCategory =
+		CATEGORY_SORT_ORDER.indexOf(a.category) -
+		CATEGORY_SORT_ORDER.indexOf(b.category);
 	if (byCategory !== 0) return byCategory;
 	const byFile = (a.filePath ?? "").localeCompare(b.filePath ?? "");
 	if (byFile !== 0) return byFile;

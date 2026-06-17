@@ -155,7 +155,7 @@ Returns the TypeScript pre-emit diagnostics (the type errors, warnings, and sugg
 - **Use case**: Validating that an edit/refactor introduced no type errors without spawning a separate `tsc` process, and getting the exact location + code + message of each error to fix it.
 - **Required information**: `tsconfigPath`. `filePaths` is optional — omit it to check the whole project (including global diagnostics that have no associated file).
 - **Behavior**: Uses `getPreEmitDiagnostics`; results are sorted error → warning → suggestion → message, then by file and 1-based position. Capped at `maxResults` (default 100), with a `truncated` flag.
-- **Output**: A summary (total/error/warning counts) plus one line per diagnostic: `<category> TS<code> <file>:<line>:<col> — <message>`.
+- **Output**: A summary (total/error/warning counts) plus one line per diagnostic: `<category> TS<code> <file>:<line>:<col> — <message>`. A file-level diagnostic with no specific position renders as just `<file>`; a project-global diagnostic (no associated file) renders as `(global)`.
 
 ## Logging Configuration
 

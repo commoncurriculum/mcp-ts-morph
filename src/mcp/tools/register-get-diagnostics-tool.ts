@@ -24,12 +24,14 @@ function safeLogInfo(fields: Record<string, unknown>): void {
 	}
 }
 
+function formatLocation(d: DiagnosticInfo): string {
+	if (d.filePath === undefined) return "(global)";
+	if (d.line === undefined) return d.filePath;
+	return `${d.filePath}:${d.line}:${d.column ?? 0}`;
+}
+
 function formatDiagnostic(d: DiagnosticInfo): string {
-	const location =
-		d.filePath !== undefined
-			? `${d.filePath}:${d.line ?? 0}:${d.column ?? 0}`
-			: "(global)";
-	return `${d.category} TS${d.code} ${location} — ${d.message}`;
+	return `${d.category} TS${d.code} ${formatLocation(d)} — ${d.message}`;
 }
 
 export function registerGetDiagnosticsTool(server: McpServer): void {
@@ -56,7 +58,7 @@ export function registerGetDiagnosticsTool(server: McpServer): void {
 - Results are capped at \`maxResults\` (default 100); \`truncated\` indicates whether more exist.
 
 ## Result
-A summary (total/error/warning counts) plus one line per diagnostic: \`<category> TS<code> <file>:<line>:<col> — <message>\`.`,
+A summary (total/error/warning counts) plus one line per diagnostic: \`<category> TS<code> <file>:<line>:<col> — <message>\`. A file-level diagnostic with no specific position renders as just \`<file>\`, and a project-global diagnostic (no associated file) renders as \`(global)\`.`,
 		{
 			tsconfigPath: z
 				.string()

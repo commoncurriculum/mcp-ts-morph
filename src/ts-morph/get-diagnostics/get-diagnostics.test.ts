@@ -1,4 +1,4 @@
-import type { Project } from "ts-morph";
+import { Project } from "ts-morph";
 import { describe, expect, it } from "vitest";
 import { createInMemoryProject } from "../_test-utils/create-in-memory-project";
 import { getDiagnosticsOnProject } from "./get-diagnostics";
@@ -75,6 +75,23 @@ describe("getDiagnostics", () => {
 		expect(result.totalCount).toBeGreaterThanOrEqual(2);
 		expect(result.diagnostics).toHaveLength(1);
 		expect(result.truncated).toBe(true);
+	});
+
+	it("reports a project-global diagnostic with no associated file", () => {
+		// A missing `types` entry produces TS2688, which has no source file.
+		const project = new Project({
+			useInMemoryFileSystem: true,
+			compilerOptions: { types: ["totally-missing-type-pkg"] },
+		});
+		project.createSourceFile("/src/a.ts", "export const x = 1;\n");
+
+		const result = getDiagnosticsOnProject(project, {});
+
+		const global = result.diagnostics.find((d) => d.filePath === undefined);
+		expect(global).toBeDefined();
+		expect(global?.line).toBeUndefined();
+		expect(global?.column).toBeUndefined();
+		expect(global?.category).toBe("error");
 	});
 
 	it("throws when a requested file does not exist", () => {
