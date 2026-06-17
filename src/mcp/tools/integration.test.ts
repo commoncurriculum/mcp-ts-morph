@@ -938,6 +938,44 @@ console.log(Btn());
 		});
 	});
 
+	describe("safe_delete_symbol_by_tsmorph", () => {
+		it("deletes an unreferenced symbol", async () => {
+			const filePath = path.join(srcDir, "util.ts");
+			fs.writeFileSync(
+				filePath,
+				"export function used() {}\nfunction dead() {}\n",
+			);
+
+			const result = await mockServer.callTool(
+				"safe_delete_symbol_by_tsmorph",
+				{ tsconfigPath, targetFilePath: filePath, symbolName: "dead" },
+			);
+
+			expect(result).toHaveProperty("isError", false);
+			expect(result.content[0]?.text || "").toContain("Deleted 'dead'");
+			expect(fs.readFileSync(filePath, "utf-8")).not.toContain("dead");
+		});
+
+		it("reports blockers and changes nothing when the symbol is referenced", async () => {
+			const utilPath = path.join(srcDir, "util2.ts");
+			const appPath = path.join(srcDir, "app.ts");
+			fs.writeFileSync(utilPath, "export function helper() {}\n");
+			fs.writeFileSync(
+				appPath,
+				'import { helper } from "./util2";\nhelper();\n',
+			);
+
+			const result = await mockServer.callTool(
+				"safe_delete_symbol_by_tsmorph",
+				{ tsconfigPath, targetFilePath: utilPath, symbolName: "helper" },
+			);
+
+			expect(result).toHaveProperty("isError", false);
+			expect(result.content[0]?.text || "").toContain("Not deleted");
+			expect(fs.readFileSync(utilPath, "utf-8")).toContain("function helper");
+		});
+	});
+
 	describe("error handling", () => {
 		it("returns an error for a file that does not exist", async () => {
 			const nonExistentPath = path.join(srcDir, "non-existent.ts");

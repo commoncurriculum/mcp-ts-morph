@@ -49,6 +49,7 @@ Each tool uses `ts-morph` to parse the AST and applies changes while preserving 
 | [`convert_named_export_to_default_by_tsmorph`](#convert_named_export_to_default_by_tsmorph) | Convert a named export to the default export and update all importers |
 | [`add_missing_imports_by_tsmorph`](#add_missing_imports_by_tsmorph) | Add imports for unresolved identifiers across files |
 | [`apply_code_fix_by_tsmorph`](#apply_code_fix_by_tsmorph) | Apply a TypeScript "fix all" quick-fix (remove unused, implement members, infer types) |
+| [`safe_delete_symbol_by_tsmorph`](#safe_delete_symbol_by_tsmorph) | Delete a symbol only when it has no references, else report blockers |
 
 ### `rename_symbol_by_tsmorph`
 
@@ -187,6 +188,15 @@ Applies a TypeScript "fix all in file" quick-fix across specific files or the wh
 - **Use case**: Bulk-clearing a class of diagnostics surfaced by `get_diagnostics_by_tsmorph`.
 - **Required information**: `tsconfigPath` and the `fix` to apply. `filePaths` is optional — omit it to process every non-declaration source file.
 - **Note**: A fix with no matching diagnostic in a file is a no-op. Stubbed member bodies throw `new Error("Method not implemented.")` — review and fill them in. Omitting `filePaths` processes the whole project, so prefer the files you touched and/or run with `dryRun: true` first.
+
+### `safe_delete_symbol_by_tsmorph`
+
+Deletes a top-level symbol's declaration **only when** it has no references outside its own declaration; otherwise it reports the blocking references and changes nothing. The mutating partner to `find_unused_exports_by_tsmorph`.
+
+- **Use case**: Removing code you believe is dead, with a type-checker guarantee you won't break a reference you missed.
+- **Required information**: Target file path and the `symbolName` (a top-level declaration).
+- **Behavior**: Resolves all references via the type checker. References inside the declaration itself (its name, recursive self-calls) are ignored; all other references — other files, same-file usages, local `export { x }` re-exports — block deletion. Overload signatures of the same symbol are deleted together; a single declarator is removed from a multi-variable statement.
+- **Note**: If two different symbols share the name, the first in the file is targeted. Imports that become unused after deletion are not removed — follow up with `organize_imports` / `apply_code_fix`.
 
 ## Logging Configuration
 
