@@ -45,6 +45,7 @@ Each tool uses `ts-morph` to parse the AST and applies changes while preserving 
 | [`find_unused_exports_by_tsmorph`](#find_unused_exports_by_tsmorph) | List candidates for unused exports |
 | [`convert_default_export_to_named_by_tsmorph`](#convert_default_export_to_named_by_tsmorph) | Convert a default export to a named export and update all importers |
 | [`organize_imports_by_tsmorph`](#organize_imports_by_tsmorph) | Remove unused imports, sort, and coalesce them across files |
+| [`get_diagnostics_by_tsmorph`](#get_diagnostics_by_tsmorph) | Report TypeScript type errors/warnings for files or the project |
 
 ### `rename_symbol_by_tsmorph`
 
@@ -146,6 +147,15 @@ Runs the editor "Organize Imports" action on specific files (or the whole projec
 - **Required information**: `tsconfigPath`. `filePaths` is optional — omit it to organize every non-declaration source file in the project.
 - **Behavior**: Removes unused named imports (and import declarations that become empty), sorts/coalesces same-module imports, and keeps side-effect-only imports (`import "./x"`). Usage in JSX, type positions, and decorators is accounted for via the TypeScript language service.
 - **Note**: Omitting `filePaths` can produce a large diff (it reorders imports project-wide), so prefer passing the files you touched and/or run with `dryRun: true` first. Expect ordering-only diffs even when nothing was unused.
+
+### `get_diagnostics_by_tsmorph`
+
+Returns the TypeScript pre-emit diagnostics (the type errors, warnings, and suggestions `tsc --noEmit` would report) for specific files or the whole project.
+
+- **Use case**: Validating that an edit/refactor introduced no type errors without spawning a separate `tsc` process, and getting the exact location + code + message of each error to fix it.
+- **Required information**: `tsconfigPath`. `filePaths` is optional — omit it to check the whole project (including global diagnostics that have no associated file).
+- **Behavior**: Uses `getPreEmitDiagnostics`; results are sorted error → warning → suggestion → message, then by file and 1-based position. Capped at `maxResults` (default 100), with a `truncated` flag.
+- **Output**: A summary (total/error/warning counts) plus one line per diagnostic: `<category> TS<code> <file>:<line>:<col> — <message>`.
 
 ## Logging Configuration
 
