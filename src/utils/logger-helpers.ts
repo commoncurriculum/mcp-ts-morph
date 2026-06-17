@@ -3,6 +3,10 @@ import * as path from "node:path";
 import type pino from "pino";
 import { z } from "zod";
 
+// This server speaks MCP over stdio, where stdout must carry JSON-RPC only.
+// Any diagnostic output therefore goes to stderr (console.error), never stdout
+// (console.log), so it cannot corrupt the protocol stream.
+
 const DEFAULT_NODE_ENV = "development";
 const DEFAULT_LOG_LEVEL: pino.Level = "info";
 const DEFAULT_LOG_OUTPUT: "console" | "file" = "console";
@@ -13,7 +17,7 @@ const envSchema = z.object({
 		.enum(["development", "production", "test"])
 		.default(DEFAULT_NODE_ENV),
 	LOG_LEVEL: z
-		.enum(["fatal", "error", "warn", "info", "debug", "trace"])
+		.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
 		.default(DEFAULT_LOG_LEVEL),
 	LOG_OUTPUT: z.enum(["console", "file"]).default(DEFAULT_LOG_OUTPUT),
 	LOG_FILE_PATH: z.string().default(DEFAULT_LOG_FILE_PATH),
@@ -71,7 +75,7 @@ function setupLogFileTransport(
 	try {
 		if (!fs.existsSync(logDir)) {
 			fs.mkdirSync(logDir, { recursive: true });
-			console.log(`Created log directory: ${logDir}`);
+			console.error(`Created log directory: ${logDir}`);
 		}
 	} catch (err) {
 		console.error(
@@ -88,7 +92,7 @@ function setupLogFileTransport(
 		return undefined;
 	}
 
-	console.log(`Writing logs to file: ${logFilePath}`);
+	console.error(`Writing logs to file: ${logFilePath}`);
 	return {
 		target: "pino/file",
 		options: { destination: logFilePath, mkdir: false },
@@ -115,16 +119,17 @@ function setupConsoleTransport(
 		require.resolve("pino-pretty");
 		// Not needed in the test environment, so only log in development.
 		if (nodeEnv === "development") {
-			console.log("Using pino-pretty for console logging.");
+			console.error("Using pino-pretty for console logging.");
 		}
 		return {
 			target: "pino-pretty",
-			options: { colorize: true, ignore: "pid,hostname" },
+			// destination: 2 -> stderr, keeping stdout free for MCP JSON-RPC.
+			options: { colorize: true, ignore: "pid,hostname", destination: 2 },
 		};
 	} catch (e) {
 		// Not needed in the test environment, so only log in development.
 		if (nodeEnv === "development") {
-			console.log(
+			console.error(
 				"pino-pretty was not found. Falling back to the default JSON console logging.",
 			);
 		}
@@ -182,7 +187,7 @@ function exitHandler(
 				: null;
 
 	if (!isTestEnv) {
-		console.log(`Process exiting (${evt})...`);
+		console.error(`Process exiting (${evt})...`);
 	}
 
 	if (errorObj) {
@@ -221,7 +226,9 @@ export function setupExitHandlers(logger: pino.Logger) {
 	process.on("exit", (code) => {
 		const isTestEnv = process.env.NODE_ENV === "test";
 		if (!isTestEnv) {
-			console.log(`Process exit code: ${code}. Logs should have been flushed.`);
+			console.error(
+				`Process exit code: ${code}. Logs should have been flushed.`,
+			);
 		}
 		// Some tests assert on the exit code, so only attempt to flush the logs.
 		try {

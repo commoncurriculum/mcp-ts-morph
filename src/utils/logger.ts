@@ -22,9 +22,13 @@ const transport = !isTestEnv
 	? configureTransport(env.NODE_ENV, env.LOG_OUTPUT, env.LOG_FILE_PATH)
 	: undefined;
 
+// When no transport is configured, Pino writes to fd 1 (stdout) by default.
+// For an MCP stdio server stdout must stay JSON-RPC only, so direct the
+// default JSON output to fd 2 (stderr) instead. Transports (pino-pretty /
+// pino/file) already target stderr or a file, so they are left untouched.
 const baseLogger = transport
 	? pino(pinoOptions, pino.transport(transport))
-	: pino(pinoOptions);
+	: pino(pinoOptions, pino.destination(2));
 
 setupExitHandlers(baseLogger);
 
