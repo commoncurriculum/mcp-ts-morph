@@ -1,4 +1,3 @@
-import type { LanguageService, SourceFile } from "ts-morph";
 import type { Project } from "ts-morph";
 import logger from "../../utils/logger";
 import { resolveTargetFiles } from "../_utils/resolve-target-files";
@@ -59,7 +58,12 @@ export async function applyCodeFixOnProject(
 
 	const languageService = project.getLanguageService();
 	for (const sourceFile of targets) {
-		applyFixIds(languageService, sourceFile, fixIds);
+		for (const fixId of fixIds) {
+			// A fix id with no matching diagnostic is a no-op (returns no changes
+			// without throwing). An *unknown* fix id throws — which is exactly the
+			// TS-version-drift signal we want surfaced, so it is not swallowed.
+			languageService.getCombinedCodeFix(sourceFile, fixId).applyChanges();
+		}
 	}
 
 	const changedFiles = getChangedFiles(project).map((sf) => sf.getFilePath());
@@ -74,23 +78,4 @@ export async function applyCodeFixOnProject(
 	}
 
 	return { changedFiles, processedFileCount: targets.length };
-}
-
-function applyFixIds(
-	languageService: LanguageService,
-	sourceFile: SourceFile,
-	fixIds: readonly string[],
-): void {
-	for (const fixId of fixIds) {
-		try {
-			languageService.getCombinedCodeFix(sourceFile, fixId).applyChanges();
-		} catch (error) {
-			// A fix id with no matching diagnostic in this file is a no-op; some
-			// ids signal that by throwing, so swallow it.
-			logger.debug(
-				{ fixId, file: sourceFile.getFilePath(), err: error },
-				"code fix not applicable",
-			);
-		}
-	}
 }
